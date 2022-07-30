@@ -1,39 +1,38 @@
 package org.jcpdev;
 
 import javax.mail.*;
-import javax.mail.event.MessageCountAdapter;
-import javax.mail.event.MessageCountEvent;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
-import java.util.Date;
 import java.util.Properties;
+import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class EmailParser {
 
-    public static void main(String[] args) throws MessagingException {
-        Folder inbox = null;
-        String result = null;
-        Session session;
-        Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
-        Properties props;
+    public static void main(String[] args) throws Exception {
 
+        Logger logger = Logger.getLogger("Email Parser Microservice");
+        FileHandler fileHandler = new FileHandler("log.log");
+        logger.addHandler(fileHandler);
+
+        Properties props;
+        props = System.getProperties();
+        props.setProperty("mail.store.protocol", "imaps");
+        Session session = Session.getDefaultInstance(props, null);
         Store store = null;
+        MimeMultipart rawEmailBody;
+        Folder inbox = null;
+        Message[] messages;
+
         try {
-            props = System.getProperties();
-            props.setProperty("mail.store.protocol", "imaps");
-            session = Session.getDefaultInstance(props, null);
             store = session.getStore("imaps");
             store.connect("imap.gmail.com", secret.email, secret.password);
             inbox = store.getFolder("MicroServiceFolder");
             if (!store.isConnected()) {
+                logger.log(Level.INFO, "Connecting to store");
                 store.connect();
             }
-
-
         } catch (Exception e) {
             logger.log(Level.SEVERE, e.toString());
             store.close();
@@ -42,15 +41,12 @@ public class EmailParser {
         while (true) {
             try {
                 inbox.open(Folder.READ_WRITE);
-                Message[] messages = inbox.getMessages();
+                messages = inbox.getMessages();
                 if (messages.length > 0) {
                     for (Message message : messages
                     ) {
-                        if (message.isMimeType("multipart/*")) {
-                            MimeMultipart mimeMultipart = (MimeMultipart) message.getContent();
-                            result = getTextFromMimeMultipart(mimeMultipart);
-                        }
-                        if (result.contains("Old School Runescape")) {
+                        rawEmailBody = (MimeMultipart) message.getContent();
+                        if (getTextFromEmailBody(rawEmailBody).contains("Old School Runescape")) {
                             //do something tod b
                         } else {
                             //NOT FOUND, DONT DELETE?
@@ -60,15 +56,13 @@ public class EmailParser {
                 }
                 inbox.close(true);
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.log(Level.SEVERE, e.toString());
                 store.close();
                 System.exit(2);
             }
         }
     }
-
-
-    private static String getTextFromMimeMultipart(
+    private static String getTextFromEmailBody(
             MimeMultipart mimeMultipart) throws MessagingException, IOException {
         String result = "";
         int count = mimeMultipart.getCount();
@@ -81,11 +75,9 @@ public class EmailParser {
                 String html = (String) bodyPart.getContent();
                 result = result + "\n" + org.jsoup.Jsoup.parse(html).text();
             } else if (bodyPart.getContent() instanceof MimeMultipart) {
-                result = result + getTextFromMimeMultipart((MimeMultipart) bodyPart.getContent());
+                result = result + getTextFromEmailBody((MimeMultipart) bodyPart.getContent());
             }
         }
         return result;
     }
-
-
 }
