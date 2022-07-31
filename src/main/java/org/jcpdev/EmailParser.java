@@ -1,13 +1,8 @@
 package org.jcpdev;
 
 import javax.mail.*;
-import javax.mail.event.MessageCountAdapter;
-import javax.mail.event.MessageCountEvent;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
-import java.util.Date;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,6 +15,8 @@ public class EmailParser {
         Session session;
         Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
         Properties props;
+        String orderNumber;
+        Message[] messages;
 
         Store store = null;
         try {
@@ -42,10 +39,12 @@ public class EmailParser {
         while (true) {
             try {
                 inbox.open(Folder.READ_WRITE);
-                Message[] messages = inbox.getMessages();
+                messages = inbox.getMessages();
                 if (messages.length > 0) {
                     for (Message message : messages
                     ) {
+                        orderNumber = (String) message.getSubject().subSequence(message.getSubject().indexOf('#'),message.getSubject().indexOf(']'));
+                        logger.log(Level.INFO, "Processing Order "+ orderNumber);
                         if (message.isMimeType("multipart/*")) {
                             MimeMultipart mimeMultipart = (MimeMultipart) message.getContent();
                             result = getTextFromMimeMultipart(mimeMultipart);
@@ -53,16 +52,18 @@ public class EmailParser {
                         if (result.contains("Old School Runescape")) {
                             //do something tod b
                         } else {
-                            //NOT FOUND, DONT DELETE?
+                            logger.log(Level.WARNING, "Email contents did not match items.");
                         }
                         message.setFlag(Flags.Flag.DELETED, true);
+                        logger.log(Level.INFO,"Email for order " + orderNumber+ " marked for deletion");
                     }
+                    inbox.close(true);
                 }
-                inbox.close(true);
+
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.log(Level.SEVERE, e.toString());
                 store.close();
-                System.exit(2);
+                System.exit(3);
             }
         }
     }
@@ -70,21 +71,21 @@ public class EmailParser {
 
     private static String getTextFromMimeMultipart(
             MimeMultipart mimeMultipart) throws MessagingException, IOException {
-        String result = "";
+        StringBuilder result = new StringBuilder();
         int count = mimeMultipart.getCount();
         for (int i = 0; i < count; i++) {
             BodyPart bodyPart = mimeMultipart.getBodyPart(i);
             if (bodyPart.isMimeType("text/plain")) {
-                result = result + "\n" + bodyPart.getContent();
+                result.append("\n").append(bodyPart.getContent());
                 break; // without break same text appears twice in my tests
             } else if (bodyPart.isMimeType("text/html")) {
                 String html = (String) bodyPart.getContent();
-                result = result + "\n" + org.jsoup.Jsoup.parse(html).text();
+                result.append("\n").append(org.jsoup.Jsoup.parse(html).text());
             } else if (bodyPart.getContent() instanceof MimeMultipart) {
-                result = result + getTextFromMimeMultipart((MimeMultipart) bodyPart.getContent());
+                result.append(getTextFromMimeMultipart((MimeMultipart) bodyPart.getContent()));
             }
         }
-        return result;
+        return result.toString();
     }
 
 
