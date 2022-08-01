@@ -9,7 +9,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class EmailParser {
-
     public static void main(String[] args) throws Exception {
 
         Logger logger = Logger.getLogger("Email Parser Microservice");
@@ -20,59 +19,40 @@ public class EmailParser {
         props = System.getProperties();
         props.setProperty("mail.store.protocol", "imaps");
         Session session = Session.getDefaultInstance(props, null);
-        String orderNumber;
         Message[] messages;
         Store store = null;
-        MimeMultipart rawEmailBody;
-        Folder inbox = null;
-        String emailBodyText="";
+        Folder etsyTransactionsInbox = null;
 
         try {
             store = session.getStore("imaps");
             store.connect("imap.gmail.com", secret.email, secret.password);
-            inbox = store.getFolder("MicroServiceFolder");
+            etsyTransactionsInbox = store.getFolder("EtsyTransctions");
             if (!store.isConnected()) {
                 logger.log(Level.INFO, "Connecting to store");
                 store.connect();
             }
         } catch (Exception e) {
-            logger.log(Level.SEVERE, e.toString());
-            store.close();
-            System.exit(1);
+            caughtException(logger, store, e);
         }
         while (true) {
             try {
-                if (!inbox.isOpen()){
-                    inbox.open(Folder.READ_WRITE);
+                if (!etsyTransactionsInbox.isOpen()) {
+                    etsyTransactionsInbox.open(Folder.READ_WRITE);
                 }
-                messages = inbox.getMessages();
+                messages = etsyTransactionsInbox.getMessages();
                 if (messages.length > 0) {
                     for (Message message : messages
                     ) {
-                        orderNumber = (String) message.getSubject().subSequence(message.getSubject().indexOf('#'), message.getSubject().indexOf(']'));
-                        logger.log(Level.INFO, "Processing Order " + orderNumber);
-                        if (message.isMimeType("multipart/*")) {
-                            MimeMultipart mimeMultipart = (MimeMultipart) message.getContent();
-                            emailBodyText = getTextFromEmailBody(mimeMultipart);
+                        if (message.getSubject().contains("You made a sale on Etsy")) {
+                           emailIsNewSale(logger,message);
+                        } else {
+                           emailIsNotNewSale(logger, message);
                         }
-                        if (emailBodyText.contains("Old School Runescape")) {
-                            rawEmailBody = (MimeMultipart) message.getContent();
-                            if (getTextFromEmailBody(rawEmailBody).contains("Old School Runescape")) {
-                                //do something tod b
-                            } else {
-                                logger.log(Level.WARNING, "Email contents did not match items.");
-                            }
-                            message.setFlag(Flags.Flag.DELETED, true);
-                            logger.log(Level.INFO, "Email for order " + orderNumber + " marked for deletion");
-                        }
-
                     }
-                    inbox.close(true);
+                    etsyTransactionsInbox.close(true);
                 }
             } catch (Exception e) {
-                logger.log(Level.SEVERE, e.toString());
-                store.close();
-                System.exit(3);
+                caughtException(logger, store, e);
             }
         }
     }
@@ -84,7 +64,7 @@ public class EmailParser {
             BodyPart bodyPart = mimeMultipart.getBodyPart(i);
             if (bodyPart.isMimeType("text/plain")) {
                 result.append("\n").append(bodyPart.getContent());
-                break; // without break same text appears twice in my tests
+                break;
             } else if (bodyPart.isMimeType("text/html")) {
                 String html = (String) bodyPart.getContent();
                 result.append("\n").append(org.jsoup.Jsoup.parse(html).text());
@@ -95,5 +75,34 @@ public class EmailParser {
         return result.toString();
     }
 
+    private static void emailIsNewSale(Logger logger, Message message) throws MessagingException, IOException {
+        String orderNumber = (String) message.getSubject().subSequence(message.getSubject().indexOf('#'), message.getSubject().indexOf(']'));
+        logger.log(Level.INFO, "Processing Order " + orderNumber);
+        if (message.isMimeType("multipart/*")) {
+            String emailBodyText = getTextFromEmailBody((MimeMultipart) message.getContent());
 
+            if (emailBodyText.contains("Old School Runescape")) {
+                //do something tod b
+            } else {
+                logger.log(Level.WARNING, "Email contents did not match items.");
+            }
+            message.setFlag(Flags.Flag.DELETED, true);
+            logger.log(Level.INFO, "Email for order " + orderNumber + " processed and deleted.\n");
+        } else {
+            message.setFlag(Flags.Flag.DELETED, true);
+            message.setFlag(Flags.Flag.FLAGGED, true);
+            logger.log(Level.WARNING, "Could not get body from email Messaged flagged for review.\n");
+        }
+    }
+
+    private static void emailIsNotNewSale(Logger logger, Message message) throws MessagingException {
+        message.setFlag(Flags.Flag.DELETED, true);
+        logger.log(Level.INFO, "Unrelated email deleted.\n");
+    }
+
+    private static void caughtException(Logger logger, Store store, Exception e) throws MessagingException {
+        logger.log(Level.SEVERE, e.toString());
+        store.close();
+        System.exit(1);
+    }
 }
