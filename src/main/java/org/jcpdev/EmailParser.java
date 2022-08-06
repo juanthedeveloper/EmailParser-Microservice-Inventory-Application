@@ -34,6 +34,7 @@ public class EmailParser {
         } catch (Exception e) {
             caughtException(logger, store, e);
         }
+        logger.log(Level.INFO, "Setup successful");
         while (true) {
             try {
                 if (!etsyTransactionsInbox.isOpen()) {
