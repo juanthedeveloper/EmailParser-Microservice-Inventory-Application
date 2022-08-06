@@ -2,19 +2,19 @@
 
 A WIP microservice for the accompanying Inventory Application.
 
-Currently features:
+Current features:
 
-  Logging system
+    Logging system
   
-  Email Parsing using JavaMail
+    Email Parsing using JavaMail
   
-  Docker image to run on multiple devices easily
+    Docker image to run on multiple devices easily
   
 Left to implement:
 
-  Create database entity
+    Create database entity
   
-  Match items from Smart Inventory application to db
+    Match items from Smart Inventory application to db
   
-  Send email alerts to service owners
+    Send email alerts to service owners
 
