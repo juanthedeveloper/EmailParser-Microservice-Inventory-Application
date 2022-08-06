@@ -9,11 +9,16 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class EmailParser {
+
+   static SoldItems itemList = new SoldItems();
+   static DatabaseActions dbActions = new DatabaseActions();
     public static void main(String[] args) throws Exception {
 
         Logger logger = Logger.getLogger("Email Parser Microservice");
         FileHandler fileHandler = new FileHandler("log.log");
         logger.addHandler(fileHandler);
+
+
 
         Properties props;
         props = System.getProperties();
@@ -82,8 +87,8 @@ public class EmailParser {
         if (message.isMimeType("multipart/*")) {
             String emailBodyText = getTextFromEmailBody((MimeMultipart) message.getContent());
 
-            if (emailBodyText.contains("Old School Runescape")) {
-                //do something tod b
+            if (emailBodyText.toLowerCase().contains(itemList.pokeball)) {
+                dbActions.soldItem(itemList.pokeball);
             } else {
                 logger.log(Level.WARNING, "Email contents did not match items.");
             }
