@@ -1,8 +1,11 @@
 package org.jcpdev;
 
+import ItemEntity.ItemsTable;
+
 import javax.mail.*;
 import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.Properties;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
@@ -10,15 +13,23 @@ import java.util.logging.Logger;
 
 public class EmailParser {
 
-   static SoldItems itemList = new SoldItems();
-   static DatabaseActions dbActions = new DatabaseActions();
+
+  static Logger logger = Logger.getLogger("Email Parser Microservice");
+
+   static DatabaseActions dbActions;
+
+    static {
+        try {
+            dbActions = new DatabaseActions();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
 
-        Logger logger = Logger.getLogger("Email Parser Microservice");
         FileHandler fileHandler = new FileHandler("log.log");
         logger.addHandler(fileHandler);
-
-
 
         Properties props;
         props = System.getProperties();
@@ -37,7 +48,7 @@ public class EmailParser {
                 store.connect();
             }
         } catch (Exception e) {
-            caughtException(logger, store, e);
+            caughtException(store, e);
         }
         logger.log(Level.INFO, "Setup successful");
         while (true) {
@@ -50,15 +61,15 @@ public class EmailParser {
                     for (Message message : messages
                     ) {
                         if (message.getSubject().contains("You made a sale on Etsy")) {
-                           emailIsNewSale(logger,message);
+                           emailIsNewSale(message);
                         } else {
-                           emailIsNotNewSale(logger, message);
+                           emailIsNotNewSale( message);
                         }
                     }
                     etsyTransactionsInbox.close(true);
                 }
             } catch (Exception e) {
-                caughtException(logger, store, e);
+                caughtException(store, e);
             }
         }
     }
@@ -81,32 +92,34 @@ public class EmailParser {
         return result.toString();
     }
 
-    private static void emailIsNewSale(Logger logger, Message message) throws MessagingException, IOException {
+    private static void emailIsNewSale(Message message) throws MessagingException, IOException {
         String orderNumber = (String) message.getSubject().subSequence(message.getSubject().indexOf('#'), message.getSubject().indexOf(']'));
         logger.log(Level.INFO, "Processing Order " + orderNumber);
         if (message.isMimeType("multipart/*")) {
             String emailBodyText = getTextFromEmailBody((MimeMultipart) message.getContent());
 
-            if (emailBodyText.toLowerCase().contains(itemList.pokeball)) {
-                dbActions.soldItem(itemList.pokeball);
-            } else {
-                logger.log(Level.WARNING, "Email contents did not match items.");
+            for (ItemsTable item : dbActions.getAllItemNames()){
+                if (emailBodyText.toLowerCase().contains(item.getItemName().toLowerCase())) {
+                    dbActions.soldItem(item.getItemId());
+                } else {
+                    logger.log(Level.WARNING, "Email contents did not match items.");
+                }
             }
             message.setFlag(Flags.Flag.DELETED, true);
             logger.log(Level.INFO, "Email for order " + orderNumber + " processed and deleted.\n");
         } else {
             message.setFlag(Flags.Flag.DELETED, true);
             message.setFlag(Flags.Flag.FLAGGED, true);
-            logger.log(Level.WARNING, "Could not get body from email Messaged flagged for review.\n");
+            logger.log(Level.WARNING, "Could not get body from email Messaged flagged and deleted for review.\n");
         }
     }
 
-    private static void emailIsNotNewSale(Logger logger, Message message) throws MessagingException {
+    private static void emailIsNotNewSale(Message message) throws MessagingException {
         message.setFlag(Flags.Flag.DELETED, true);
         logger.log(Level.INFO, "Unrelated email deleted.\n");
     }
 
-    private static void caughtException(Logger logger, Store store, Exception e) throws MessagingException {
+    private static void caughtException(Store store, Exception e) throws MessagingException {
         logger.log(Level.SEVERE, e.toString());
         store.close();
         System.exit(1);

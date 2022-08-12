@@ -3,7 +3,8 @@ package ItemEntity;
 import javax.persistence.*;
 
 @Entity
-@NamedQuery(name = "searchByName", query = "SELECT I FROM ItemsTable I WHERE I.itemName=?1")
+@NamedQuery(name = "searchById", query = "SELECT I FROM ItemsTable I WHERE I.itemId=?1")
+@NamedQuery(name= "allItemsName",query = "SELECT I FROM ItemsTable I" )
 public class ItemsTable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Id
