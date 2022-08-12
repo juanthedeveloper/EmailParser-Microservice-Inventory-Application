@@ -9,10 +9,10 @@ Current features:
     Email Parsing using JavaMail
   
     Docker image to run on multiple devices easily
+    
+    Database entity
   
 Left to implement:
-
-    Create database entity
   
     Match items from Smart Inventory application to db
   
